@@ -119,6 +119,25 @@ app.get('/api/reports/hall-students/:hall_name', async (req, res) => {
     }
 });
 
+// Available rooms in a given hall (User Addition)
+app.get('/api/reports/free-rooms/:hall_name', async (req, res) => {
+    try {
+        const { hall_name } = req.params;
+        const [rows] = await db.query(`
+            SELECT room_number, place_number, monthly_rent
+            FROM Room
+            WHERE hall_name = ? 
+              AND place_number NOT IN (
+                  SELECT place_number FROM Lease 
+                  WHERE CURDATE() BETWEEN enter_date AND leave_date
+              )
+        `, [hall_name]);
+        res.json(rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // (h) Waiting list students
 app.get('/api/reports/waiting-list', async (req, res) => {
     try {

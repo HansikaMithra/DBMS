@@ -42,7 +42,8 @@ const App = () => {
     { id: 'total-rent', label: 'Total Rent Paid', icon: DollarSign, endpoint: (p) => `/api/reports/total-rent/${p}`, requiresParam: true, paramLabel: 'Banner Number', paramType: 'text', title: 'Total Rent by Student', category: 'Advanced Queries' },
     { id: 'unpaid-invoices', label: 'Unpaid Invoices', icon: FileWarning, endpoint: (p) => `/api/reports/unpaid-invoices?date=${p}`, requiresParam: true, paramLabel: 'Cutoff Date', paramType: 'date', title: 'Unpaid Invoices by Date', category: 'Advanced Queries' },
     { id: 'hall-students', label: 'Students in Hall', icon: Home, endpoint: (p) => `/api/reports/hall-students/${p}`, requiresParam: true, paramLabel: 'Hall Name', paramType: 'text', title: 'Students by Residence Hall', category: 'Advanced Queries' },
-    { id: 'student-adviser', label: 'Student Adviser', icon: UserCircle, endpoint: (p) => `/api/reports/student-adviser/${p}`, requiresParam: true, paramLabel: 'Banner Number', paramType: 'text', title: 'Adviser Contact Details', category: 'Advanced Queries' }
+    { id: 'student-adviser', label: 'Student Adviser', icon: UserCircle, endpoint: (p) => `/api/reports/student-adviser/${p}`, requiresParam: true, paramLabel: 'Banner Number', paramType: 'text', title: 'Adviser Contact Details', category: 'Advanced Queries' },
+    { id: 'free-rooms', label: 'Available Rooms', icon: Home, endpoint: (p) => `/api/reports/free-rooms/${p}`, requiresParam: true, paramLabel: 'Hall Name', paramType: 'text', title: 'Available Rooms in Hall', category: 'Advanced Queries' }
   ];
 
   const fetchReportData = async (reportId, paramValue) => {
@@ -201,6 +202,12 @@ const App = () => {
           { header: 'Student', key: 'student_first', render: (_, row) => `${row.student_first || ''} ${row.student_last || ''}` },
           { header: 'Adviser', key: 'adviser_first', render: (_, row) => `${row.adviser_first || ''} ${row.adviser_last || ''}` },
           { header: 'Telephone', key: 'telephone' }
+        ];
+      case 'free-rooms':
+        return [
+          { header: 'Room #', key: 'room_number' },
+          { header: 'Place #', key: 'place_number' },
+          { header: 'Monthly Rent', key: 'monthly_rent', render: (val) => `$${parseFloat(val).toFixed(2)}` }
         ];
       default:
         if (data.length > 0) {
