@@ -13,7 +13,7 @@ app.use(express.json());
 app.get('/api/reports/hall-managers', async (req, res) => {
     try {
         const [rows] = await db.query(`
-            SELECT h.hall_name, s.first_name, s.last_name, s.telephone
+            SELECT h.hall_name, s.staff_number, s.first_name, s.last_name, s.telephone
             FROM HallOfResidence h
             JOIN Staff s ON h.manager_id = s.staff_number
             ORDER BY h.hall_name
@@ -255,6 +255,54 @@ app.post('/api/students', async (req, res) => {
         if (err.code === 'ER_DUP_ENTRY') {
             return res.status(409).json({ error: 'Student with this Banner Number or Email already exists' });
         }
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// --- GENERIC UPDATE (Reports) ---
+app.put('/api/reports/:reportId/:id', async (req, res) => {
+    const { reportId, id } = req.params;
+    const data = req.body;
+    
+    try {
+        let tableName = '';
+        let idColumn = '';
+        let updateData = {};
+
+        // Route the update to the correct base table and primary key based on report context
+        if (reportId === 'waiting-list' || reportId === 'missing-next-of-kin') {
+            tableName = 'Student'; idColumn = 'banner_number';
+            if(data.first_name) updateData.first_name = data.first_name;
+            if(data.last_name) updateData.last_name = data.last_name;
+            if(data.email) updateData.email = data.email;
+            if(data.category) updateData.category = data.category;
+            if(data.major) updateData.major = data.major;
+        } else if (reportId === 'senior-staff' || reportId === 'hall-managers') {
+            tableName = 'Staff'; 
+            idColumn = reportId === 'hall-managers' ? 'staff_number' : 'staff_number';
+            // Wait, for hall-managers we show manager ID but the view doesn't explicitly expose manager_id? It does implicitly.
+            updateData = { location: data.location, telephone: data.telephone, first_name: data.first_name };
+        } else if (reportId === 'unsatisfactory-inspections') {
+            tableName = 'Inspection'; idColumn = 'inspection_id';
+            updateData = { comments: data.comments, satisfactory_condition: data.satisfactory_condition === 'true' || data.satisfactory_condition === 1 };
+        } else if (reportId === 'student-leases' || reportId === 'summer-leases') {
+            tableName = 'Lease'; idColumn = 'lease_number';
+            if(data.duration_semesters) updateData.duration_semesters = data.duration_semesters;
+            if(data.enter_date) updateData.enter_date = data.enter_date.split('T')[0];
+            if(data.leave_date) updateData.leave_date = data.leave_date.split('T')[0];
+        } else {
+            return res.status(400).json({ error: 'Update not supported for this report type.' });
+        }
+
+        // Clean out undefined data
+        Object.keys(updateData).forEach(key => updateData[key] === undefined && delete updateData[key]);
+
+        if (Object.keys(updateData).length === 0) return res.json({ message: 'No valid fields to update' });
+        
+        // Execute dynamic UPDATE
+        await db.query(`UPDATE ${tableName} SET ? WHERE ${idColumn} = ?`, [updateData, id]);
+        res.json({ message: 'Record updated successfully' });
+    } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
