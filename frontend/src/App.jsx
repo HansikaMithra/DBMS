@@ -159,7 +159,7 @@ const App = () => {
       case 'rent-stats':
         return [
           { header: 'Metric', key: 'metric' },
-          { header: 'Value', key: 'value', render: (val) => `$${parseFloat(val).toFixed(2)}` }
+          { header: 'Value', key: 'value', render: (val) => `₹${parseFloat(val).toFixed(2)}` }
         ];
       case 'hall-places':
         return [
@@ -181,13 +181,13 @@ const App = () => {
       case 'total-rent':
         return [
           { header: 'Student', key: 'name', render: (_, row) => `${row.first_name || ''} ${row.last_name || ''}` },
-          { header: 'Total Rent Paid', key: 'total_rent_paid', render: (val) => val ? `$${parseFloat(val).toFixed(2)}` : '$0.00' }
+          { header: 'Total Rent Paid', key: 'total_rent_paid', render: (val) => val ? `₹${parseFloat(val).toFixed(2)}` : '₹0.00' }
         ];
       case 'unpaid-invoices':
         return [
           { header: 'Invoice #', key: 'invoice_number' },
           { header: 'Student', key: 'name', render: (_, row) => `${row.first_name} ${row.last_name}` },
-          { header: 'Payment Due', key: 'payment_due', render: (val) => `$${parseFloat(val).toFixed(2)}` },
+          { header: 'Payment Due', key: 'payment_due', render: (val) => `₹${parseFloat(val).toFixed(2)}` },
           { header: 'Due Date', key: 'due_date' }
         ];
       case 'hall-students':
@@ -207,7 +207,7 @@ const App = () => {
         return [
           { header: 'Room #', key: 'room_number' },
           { header: 'Place #', key: 'place_number' },
-          { header: 'Monthly Rent', key: 'monthly_rent', render: (val) => `$${parseFloat(val).toFixed(2)}` }
+          { header: 'Monthly Rent', key: 'monthly_rent', render: (val) => `₹${parseFloat(val).toFixed(2)}` }
         ];
       default:
         if (data.length > 0) {
