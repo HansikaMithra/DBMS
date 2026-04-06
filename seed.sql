@@ -24,12 +24,9 @@ INSERT INTO StudentApartment (flat_number, address, available_bedrooms) VALUES
 
 -- 4. Populate Rooms (Place Number 1-46)
 INSERT INTO Room (room_number, room_type, monthly_rent, hall_name, flat_number) VALUES
+-- Hall A (Places 1 - 22)
 ('1A', 'Single', 20000.00, 'Hall A', NULL),
 ('1B', 'Single', 20000.00, 'Hall A', NULL),
-('2A', 'Double', 20000.00, 'Hall B', NULL),
-('101A', 'Single', 20000.00, NULL, 'Flat 101'),
-('101B', 'Single', 20000.00, NULL, 'Flat 101'),
-('102A', 'Suite', 20000.00, NULL, 'Flat 102'),
 ('A-01', 'Single', 20000.00, 'Hall A', NULL), ('A-02', 'Single', 20000.00, 'Hall A', NULL),
 ('A-03', 'Single', 20000.00, 'Hall A', NULL), ('A-04', 'Single', 20000.00, 'Hall A', NULL),
 ('A-05', 'Single', 20000.00, 'Hall A', NULL), ('A-06', 'Single', 20000.00, 'Hall A', NULL),
@@ -40,6 +37,9 @@ INSERT INTO Room (room_number, room_type, monthly_rent, hall_name, flat_number) 
 ('A-15', 'Single', 20000.00, 'Hall A', NULL), ('A-16', 'Single', 20000.00, 'Hall A', NULL),
 ('A-17', 'Single', 20000.00, 'Hall A', NULL), ('A-18', 'Single', 20000.00, 'Hall A', NULL),
 ('A-19', 'Single', 20000.00, 'Hall A', NULL), ('A-20', 'Single', 20000.00, 'Hall A', NULL),
+
+-- Hall B (Places 23 - 43)
+('2A', 'Double', 20000.00, 'Hall B', NULL),
 ('B-01', 'Single', 20000.00, 'Hall B', NULL), ('B-02', 'Single', 20000.00, 'Hall B', NULL),
 ('B-03', 'Single', 20000.00, 'Hall B', NULL), ('B-04', 'Single', 20000.00, 'Hall B', NULL),
 ('B-05', 'Single', 20000.00, 'Hall B', NULL), ('B-06', 'Single', 20000.00, 'Hall B', NULL),
@@ -49,7 +49,12 @@ INSERT INTO Room (room_number, room_type, monthly_rent, hall_name, flat_number) 
 ('B-13', 'Single', 20000.00, 'Hall B', NULL), ('B-14', 'Single', 20000.00, 'Hall B', NULL),
 ('B-15', 'Single', 20000.00, 'Hall B', NULL), ('B-16', 'Single', 20000.00, 'Hall B', NULL),
 ('B-17', 'Single', 20000.00, 'Hall B', NULL), ('B-18', 'Single', 20000.00, 'Hall B', NULL),
-('B-19', 'Single', 20000.00, 'Hall B', NULL), ('B-20', 'Single', 20000.00, 'Hall B', NULL);
+('B-19', 'Single', 20000.00, 'Hall B', NULL), ('B-20', 'Single', 20000.00, 'Hall B', NULL),
+
+-- Student Apartments (Places 44, 45, 46)
+('101A', 'Single', 20000.00, NULL, 'Flat 101'),
+('101B', 'Single', 20000.00, NULL, 'Flat 101'),
+('102A', 'Suite', 20000.00, NULL, 'Flat 102');
 
 -- 5. Populate Courses
 INSERT INTO Course (course_number, title, instructor_name, instructor_phone, email, room, department) VALUES
@@ -73,9 +78,9 @@ INSERT INTO NextOfKin (student_banner_number, name, relationship, address, conta
 -- 8. Populate Leases
 -- Lease for Summer (June to August)
 INSERT INTO Lease (student_banner_number, place_number, duration_semesters, enter_date, leave_date) VALUES
-('B00001', 1, 1, '2026-06-01', '2026-08-30'), -- Hall A, Room 1A
-('B00002', 3, 2, '2026-09-01', '2027-05-30'), -- Hall B, Room 2A
-('B00004', 4, 1, '2026-09-01', '2026-12-30'); -- Flat 101, Room 101A
+('B00001', 1, 1, '2026-06-01', '2026-08-30'), -- Hall A, Room 1A (Place 1)
+('B00002', 23, 2, '2026-09-01', '2027-05-30'), -- Hall B, Room 2A (Place 23)
+('B00004', 44, 1, '2026-09-01', '2026-12-30'); -- Flat 101, Room 101A (Place 44)
 
 -- 9. Populate Invoices
 INSERT INTO Invoice (lease_number, semester, payment_due, due_date, date_invoice_sent, date_paid, payment_method) VALUES

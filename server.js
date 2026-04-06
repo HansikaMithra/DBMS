@@ -138,6 +138,24 @@ app.get('/api/reports/free-rooms/:hall_name', async (req, res) => {
     }
 });
 
+// Available flats in the system (User Addition)
+app.get('/api/reports/free-flats', async (req, res) => {
+    try {
+        const [rows] = await db.query(`
+            SELECT flat_number, room_number, place_number, monthly_rent
+            FROM Room
+            WHERE flat_number IS NOT NULL
+              AND place_number NOT IN (
+                  SELECT place_number FROM Lease 
+                  WHERE CURDATE() BETWEEN enter_date AND leave_date
+              )
+        `);
+        res.json(rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // (h) Waiting list students
 app.get('/api/reports/waiting-list', async (req, res) => {
     try {
