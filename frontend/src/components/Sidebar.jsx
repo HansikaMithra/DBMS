@@ -14,7 +14,7 @@ const SidebarItem = ({ icon: Icon, label, active, onClick }) => (
 );
 
 const Sidebar = ({ reports, activeReport, setActiveReport }) => {
-  const categories = ['Student Management', 'Property & Safety', 'Analytics'];
+  const categories = [...new Set(reports.map(r => r.category))];
   
   return (
     <aside className="app-sidebar">

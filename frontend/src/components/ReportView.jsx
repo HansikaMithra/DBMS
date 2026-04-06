@@ -74,9 +74,14 @@ const StatCard = ({ label, value, icon: Icon }) => (
   </div>
 );
 
-const ReportView = ({ activeReport, reports, data, loading, getColumns, onAddStudent, idKey, onEditClick }) => {
+const ReportView = ({ activeReport, reports, data, loading, getColumns, onAddStudent, idKey, onEditClick, onSearch }) => {
   const currentReport = reports.find(r => r.id === activeReport) || reports[0];
   const columns = getColumns();
+  const [paramValue, setParamValue] = React.useState('');
+
+  React.useEffect(() => {
+    setParamValue('');
+  }, [activeReport]);
 
   return (
     <div className="animate-fade">
@@ -115,6 +120,30 @@ const ReportView = ({ activeReport, reports, data, loading, getColumns, onAddStu
           <h4 className="font-bold uppercase tracking-widest text-foreground" style={{ fontSize: '0.75rem' }}>Data Integrity View</h4>
           <span className="text-muted uppercase font-bold tracking-widest" style={{ fontSize: '0.65rem' }}>Last Sync: Just now</span>
         </div>
+        
+        {currentReport.requiresParam && (
+          <div style={{ padding: '1.5rem', borderBottom: '1px solid hsla(var(--glass-border), 0.3)', display: 'flex', gap: '1rem', alignItems: 'flex-end', background: 'hsla(var(--background), 0.5)' }}>
+            <div style={{ flex: 1, maxWidth: '400px' }}>
+              <label className="form-label" style={{ marginBottom: '0.5rem' }}>{currentReport.paramLabel} Required</label>
+              <input 
+                type={currentReport.paramType}
+                value={paramValue}
+                onChange={(e) => setParamValue(e.target.value)}
+                className="glass-input" 
+                placeholder={`Search by ${currentReport.paramLabel}...`} 
+                style={{ background: 'hsl(var(--background))' }}
+              />
+            </div>
+            <button 
+              onClick={() => onSearch(paramValue)}
+              className="btn-primary" 
+              disabled={!paramValue}
+              style={{ padding: '0.6rem 1.5rem' }}
+            >
+              Search
+            </button>
+          </div>
+        )}
         
         <div>
           {loading ? (

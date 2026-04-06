@@ -1,16 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { 
-  BarChart3, 
-  Users, 
-  Home, 
-  FileText, 
-  ClipboardCheck, 
-  AlertCircle, 
-  UserPlus, 
-  Building2,
-  Calendar,
-  TrendingDown
+  BarChart3, Users, Home, FileText, ClipboardCheck, AlertCircle, 
+  UserPlus, Building2, Calendar, TrendingDown, DollarSign, FileWarning, Search, UserCircle
 } from 'lucide-react';
 
 // Components
@@ -46,14 +38,23 @@ const App = () => {
     { id: 'missing-next-of-kin', label: 'Missing Kin Info', icon: Users, endpoint: '/api/reports/missing-next-of-kin', title: 'Students without Next-of-Kin details', category: 'Student Management' },
     { id: 'rent-stats', label: 'Rent Statistics', icon: TrendingDown, endpoint: '/api/reports/rent-stats', title: 'Market Rent overview (Halls)', category: 'Analytics' },
     { id: 'hall-places', label: 'Hall Capacity', icon: Home, endpoint: '/api/reports/hall-places', title: 'Available places per Residence Hall', category: 'Property & Safety' },
-    { id: 'senior-staff', label: 'Senior Staff', icon: Users, endpoint: '/api/reports/senior-staff', title: 'Residence Staff over 60 years old', category: 'Analytics' }
+    { id: 'senior-staff', label: 'Senior Staff', icon: Users, endpoint: '/api/reports/senior-staff', title: 'Residence Staff over 60 years old', category: 'Analytics' },
+    { id: 'total-rent', label: 'Total Rent Paid', icon: DollarSign, endpoint: (p) => `/api/reports/total-rent/${p}`, requiresParam: true, paramLabel: 'Banner Number', paramType: 'text', title: 'Total Rent by Student', category: 'Advanced Queries' },
+    { id: 'unpaid-invoices', label: 'Unpaid Invoices', icon: FileWarning, endpoint: (p) => `/api/reports/unpaid-invoices?date=${p}`, requiresParam: true, paramLabel: 'Cutoff Date', paramType: 'date', title: 'Unpaid Invoices by Date', category: 'Advanced Queries' },
+    { id: 'hall-students', label: 'Students in Hall', icon: Home, endpoint: (p) => `/api/reports/hall-students/${p}`, requiresParam: true, paramLabel: 'Hall Name', paramType: 'text', title: 'Students by Residence Hall', category: 'Advanced Queries' },
+    { id: 'student-adviser', label: 'Student Adviser', icon: UserCircle, endpoint: (p) => `/api/reports/student-adviser/${p}`, requiresParam: true, paramLabel: 'Banner Number', paramType: 'text', title: 'Adviser Contact Details', category: 'Advanced Queries' }
   ];
 
-  const fetchReportData = async (reportId) => {
+  const fetchReportData = async (reportId, paramValue) => {
+    const report = reports.find(r => r.id === reportId);
+    if (report.requiresParam && !paramValue) {
+       setData([]); // Clear data until searched
+       return;
+    }
     setLoading(true);
     try {
-      const report = reports.find(r => r.id === reportId);
-      const res = await axios.get(report.endpoint);
+      const url = report.requiresParam ? report.endpoint(paramValue) : report.endpoint;
+      const res = await axios.get(url);
       setData(Array.isArray(res.data) ? res.data : [res.data]);
     } catch (err) {
       console.error(err);
@@ -176,6 +177,31 @@ const App = () => {
           { header: 'Banner #', key: 'banner_number' },
           { header: 'Name', key: 'name', render: (_, row) => `${row.first_name} ${row.last_name}` }
         ];
+      case 'total-rent':
+        return [
+          { header: 'Student', key: 'name', render: (_, row) => `${row.first_name || ''} ${row.last_name || ''}` },
+          { header: 'Total Rent Paid', key: 'total_rent_paid', render: (val) => val ? `$${parseFloat(val).toFixed(2)}` : '$0.00' }
+        ];
+      case 'unpaid-invoices':
+        return [
+          { header: 'Invoice #', key: 'invoice_number' },
+          { header: 'Student', key: 'name', render: (_, row) => `${row.first_name} ${row.last_name}` },
+          { header: 'Payment Due', key: 'payment_due', render: (val) => `$${parseFloat(val).toFixed(2)}` },
+          { header: 'Due Date', key: 'due_date' }
+        ];
+      case 'hall-students':
+        return [
+          { header: 'Banner #', key: 'banner_number' },
+          { header: 'Student', key: 'name', render: (_, row) => `${row.first_name} ${row.last_name}` },
+          { header: 'Room #', key: 'room_number' },
+          { header: 'Place #', key: 'place_number' }
+        ];
+      case 'student-adviser':
+        return [
+          { header: 'Student', key: 'student_first', render: (_, row) => `${row.student_first || ''} ${row.student_last || ''}` },
+          { header: 'Adviser', key: 'adviser_first', render: (_, row) => `${row.adviser_first || ''} ${row.adviser_last || ''}` },
+          { header: 'Telephone', key: 'telephone' }
+        ];
       default:
         if (data.length > 0) {
           return Object.keys(data[0]).map(key => ({ header: key.replace(/_/g, ' ').toUpperCase(), key }));
@@ -207,6 +233,7 @@ const App = () => {
         onAddStudent={() => setIsModalOpen(true)}
         idKey={getIdKey()}
         onEditClick={handleEditClick}
+        onSearch={(paramValue) => fetchReportData(activeReport, paramValue)}
       />
 
       <StudentModal 

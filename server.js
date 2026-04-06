@@ -64,7 +64,7 @@ app.get('/api/reports/total-rent/:banner_number', async (req, res) => {
             WHERE s.banner_number = ? AND i.date_paid IS NOT NULL
             GROUP BY s.banner_number, s.first_name, s.last_name
         `, [banner_number]);
-        res.json(rows[0] || { message: 'No rent paid records found' });
+        res.json(rows.length > 0 ? [rows[0]] : []);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -172,7 +172,7 @@ app.get('/api/reports/student-adviser/:banner_number', async (req, res) => {
             JOIN Staff st ON s.adviser_id = st.staff_number
             WHERE s.banner_number = ?
         `, [banner_number]);
-        res.json(rows[0] || { message: 'Adviser not found' });
+        res.json(rows.length > 0 ? [rows[0]] : []);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
