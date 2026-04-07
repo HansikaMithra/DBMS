@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { 
   BarChart3, Users, Home, FileText, ClipboardCheck, AlertCircle, 
-  UserPlus, Building2, Calendar, TrendingDown, DollarSign, FileWarning, Search, UserCircle
+  UserPlus, Building2, Calendar, TrendingDown, DollarSign, FileWarning, Search, UserCircle, Warehouse
 } from 'lucide-react';
 
 // Components
@@ -10,20 +10,35 @@ import Layout from './components/Layout';
 import ReportView from './components/ReportView';
 import StudentModal from './components/StudentModal';
 import EditRowModal from './components/EditRowModal';
+import InspectionModal from './components/InspectionModal';
+import Login from './components/Login';
 
 const App = () => {
   const [activeReport, setActiveReport] = useState('hall-managers');
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [activePercentage, setActivePercentage] = useState('0%');
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [formData, setFormData] = useState({
-    banner_number: '', first_name: '', last_name: '', email: '', 
-    dob: '', gender: 'M', category: 'Undergraduate', major: '', minor: '',
-    phone: '', nationality: '', address: '', special_needs: '', status: 'waiting', course_number: ''
-  });
-  const [statusMsg, setStatusMsg] = useState({ type: '', text: '' });
+  const [isInspectionModalOpen, setIsInspectionModalOpen] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [isAuthenticating, setIsAuthenticating] = useState(true);
   
-  // Row Edit Modal State
+  const [formData, setFormData] = useState({
+    banner_id: '', first_name: '', last_name: '', email: '', 
+    dob: '', gender: 'M', category: 'Undergraduate', major: '', minor: '',
+    phone: '', nationality: '', city: '', status: 'waiting', course_id: '', adviser_id: '',
+    preference: ''
+  });
+
+  const [inspectionFormData, setInspectionFormData] = useState({
+    hall_name: '', staff_id: '', date: new Date().toISOString().split('T')[0],
+    status: false, comments: ''
+  });
+  
+  const [statusMsg, setStatusMsg] = useState({ type: '', text: '' });
+  const [inspectionStatusMsg, setInspectionStatusMsg] = useState({ type: '', text: '' });
+  
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editData, setEditData] = useState(null);
   const [editStatus, setEditStatus] = useState({ type: '', text: '' });
@@ -33,25 +48,25 @@ const App = () => {
     { id: 'student-leases', label: 'Student Leases', icon: FileText, endpoint: '/api/reports/student-leases', title: 'Student Lease Agreements', category: 'Student Management' },
     { id: 'summer-leases', label: 'Summer Leases', icon: Calendar, endpoint: '/api/reports/summer-leases', title: 'Leases overlapping Summer Semester', category: 'Student Management' },
     { id: 'waiting-list', label: 'Waiting List', icon: UserPlus, endpoint: '/api/reports/waiting-list', title: 'Students on Waiting List', category: 'Student Management' },
-    { id: 'unsatisfactory-inspections', label: 'Failed Inspections', icon: AlertCircle, endpoint: '/api/reports/unsatisfactory-inspections', title: 'Unsatisfactory Property Inspections', category: 'Property & Safety' },
+    { id: 'unsatisfactory-inspections', label: 'Failed Inspections', icon: AlertCircle, endpoint: '/api/reports/unsatisfactory-inspections', title: 'Unsatisfactory Property Inspections', category: 'Property & Safety', addActionLabel: 'Add Inspection', addActionIcon: ClipboardCheck },
     { id: 'student-categories', label: 'Student Tally', icon: BarChart3, endpoint: '/api/reports/student-categories', title: 'Student Counts by category', category: 'Analytics' },
     { id: 'missing-next-of-kin', label: 'Missing Kin Info', icon: Users, endpoint: '/api/reports/missing-next-of-kin', title: 'Students without Next-of-Kin details', category: 'Student Management' },
     { id: 'rent-stats', label: 'Rent Statistics', icon: TrendingDown, endpoint: '/api/reports/rent-stats', title: 'Market Rent overview (Halls)', category: 'Analytics' },
     { id: 'hall-places', label: 'Hall Capacity', icon: Home, endpoint: '/api/reports/hall-places', title: 'Available places per Residence Hall', category: 'Property & Safety' },
+    { id: 'flat-students', label: 'Flat Students', icon: Warehouse, endpoint: '/api/reports/flat-students', title: 'Students in Flat Apartments', category: 'Property & Safety' },
+    { id: 'flat-capacity', label: 'Flat Capacity', icon: Warehouse, endpoint: '/api/reports/flat-capacity', title: 'Flat Apartment Capacity Overview', category: 'Property & Safety' },
     { id: 'senior-staff', label: 'Senior Staff', icon: Users, endpoint: '/api/reports/senior-staff', title: 'Residence Staff over 60 years old', category: 'Analytics' },
-    { id: 'total-rent', label: 'Total Rent Paid', icon: DollarSign, endpoint: (p) => `/api/reports/total-rent/${p}`, requiresParam: true, paramLabel: 'Banner Number', paramType: 'text', title: 'Total Rent by Student', category: 'Advanced Queries' },
+    { id: 'all-staff', label: 'All Staff', icon: Users, endpoint: '/api/reports/all-staff', title: 'All Staff Directory', category: 'Staff Management' },
+    { id: 'total-rent', label: 'Total Rent Paid', icon: DollarSign, endpoint: '/api/reports/total-rent', title: 'Total Rent by Student', category: 'Advanced Queries' },
     { id: 'unpaid-invoices', label: 'Unpaid Invoices', icon: FileWarning, endpoint: (p) => `/api/reports/unpaid-invoices?date=${p}`, requiresParam: true, paramLabel: 'Cutoff Date', paramType: 'date', title: 'Unpaid Invoices by Date', category: 'Advanced Queries' },
     { id: 'hall-students', label: 'Students in Hall', icon: Home, endpoint: (p) => `/api/reports/hall-students/${p}`, requiresParam: true, paramLabel: 'Hall Name', paramType: 'text', title: 'Students by Residence Hall', category: 'Advanced Queries' },
-    { id: 'flat-students', label: 'Students in Flat', icon: Users, endpoint: (p) => `/api/reports/flat-students/${p}`, requiresParam: true, paramLabel: 'Flat Number', paramType: 'text', title: 'Students by Student Flat', category: 'Advanced Queries' },
-    { id: 'student-adviser', label: 'Student Adviser', icon: UserCircle, endpoint: (p) => `/api/reports/student-adviser/${p}`, requiresParam: true, paramLabel: 'Banner Number', paramType: 'text', title: 'Adviser Contact Details', category: 'Advanced Queries' },
-    { id: 'free-rooms', label: 'Available Rooms', icon: Home, endpoint: (p) => `/api/reports/free-rooms/${p}`, requiresParam: true, paramLabel: 'Hall Name', paramType: 'text', title: 'Available Rooms in Hall', category: 'Advanced Queries' },
-    { id: 'free-flats', label: 'Available Flats', icon: Building2, endpoint: '/api/reports/free-flats', title: 'Available Rooms in Student Flats', category: 'Advanced Queries' }
+    { id: 'student-adviser', label: 'Student Adviser', icon: UserCircle, endpoint: '/api/reports/student-adviser', title: 'Adviser Contact Details', category: 'Advanced Queries' }
   ];
 
   const fetchReportData = async (reportId, paramValue) => {
     const report = reports.find(r => r.id === reportId);
     if (report.requiresParam && !paramValue) {
-       setData([]); // Clear data until searched
+       setData([]);
        return;
     }
     setLoading(true);
@@ -67,9 +82,42 @@ const App = () => {
     }
   };
 
+  const fetchActivePercentage = async () => {
+    try {
+      const res = await axios.get('/api/stats/active-percentage');
+      setActivePercentage(res.data.percentage);
+    } catch (err) {
+      console.error("Failed to fetch active percentage:", err);
+    }
+  };
+
   useEffect(() => {
-    fetchReportData(activeReport);
-  }, [activeReport]);
+    const savedUser = localStorage.getItem('staff_user');
+    if (savedUser) {
+      setCurrentUser(JSON.parse(savedUser));
+      setIsLoggedIn(true);
+    }
+    setIsAuthenticating(false);
+  }, []);
+
+  useEffect(() => {
+    if (isLoggedIn) {
+      fetchReportData(activeReport);
+      fetchActivePercentage();
+    }
+  }, [activeReport, isLoggedIn]);
+
+  const handleLogin = (user) => {
+    setCurrentUser(user);
+    setIsLoggedIn(true);
+    localStorage.setItem('staff_user', JSON.stringify(user));
+  };
+
+  const handleLogout = () => {
+    setCurrentUser(null);
+    setIsLoggedIn(false);
+    localStorage.removeItem('staff_user');
+  };
 
   const handleInputChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -83,24 +131,46 @@ const App = () => {
       setStatusMsg({ type: 'success', text: 'Student added successfully!' });
       setTimeout(() => {
         setIsModalOpen(false);
-        setFormData({ banner_number: '', first_name: '', last_name: '', email: '', dob: '', gender: 'M', category: 'Undergraduate', major: '', minor: '', phone: '', nationality: '', address: '', special_needs: '', status: 'waiting', course_number: '' });
+        setFormData({ banner_id: '', first_name: '', last_name: '', email: '', dob: '', gender: 'M', category: 'Undergraduate', major: '', minor: '', phone: '', nationality: '', city: '', status: 'waiting', course_id: '', adviser_id: '', preference: '' });
         setStatusMsg({ type: '', text: '' });
         fetchReportData(activeReport);
+        fetchActivePercentage();
       }, 2000);
     } catch (err) {
       setStatusMsg({ type: 'error', text: err.response?.data?.error || 'Failed to add student' });
     }
   };
 
+  const handleInspectionInputChange = (e) => {
+    setInspectionFormData({ ...inspectionFormData, [e.target.name]: e.target.value });
+  };
+
+  const handleInspectionSubmit = async (e) => {
+    e.preventDefault();
+    setInspectionStatusMsg({ type: '', text: '' });
+    try {
+      await axios.post('/api/inspections', inspectionFormData);
+      setInspectionStatusMsg({ type: 'success', text: 'Inspection record saved!' });
+      setTimeout(() => {
+        setIsInspectionModalOpen(false);
+        setInspectionFormData({ hall_name: '', staff_id: '', date: new Date().toISOString().split('T')[0], status: false, comments: '' });
+        setInspectionStatusMsg({ type: '', text: '' });
+        fetchReportData(activeReport);
+      }, 1500);
+    } catch (err) {
+      setInspectionStatusMsg({ type: 'error', text: err.response?.data?.error || 'Failed to save inspection' });
+    }
+  };
+
   const getIdKey = () => {
     switch (activeReport) {
-      case 'hall-managers': return 'staff_number';
-      case 'student-leases': return 'lease_number';
-      case 'summer-leases': return 'lease_number';
-      case 'waiting-list': return 'banner_number';
-      case 'unsatisfactory-inspections': return 'inspection_id';
-      case 'missing-next-of-kin': return 'banner_number';
-      case 'senior-staff': return 'staff_number';
+      case 'hall-managers': return 'staff_id';
+      case 'student-leases': return 'lease_id';
+      case 'summer-leases': return 'lease_id';
+      case 'waiting-list': return 'banner_id';
+      case 'unsatisfactory-inspections': return 'id';
+      case 'missing-next-of-kin': return 'banner_id';
+      case 'senior-staff': return 'staff_id';
       default: return null;
     }
   };
@@ -122,9 +192,23 @@ const App = () => {
       setTimeout(() => {
         setEditModalOpen(false);
         fetchReportData(activeReport);
+        fetchActivePercentage();
       }, 1500);
     } catch (err) {
       setEditStatus({ type: 'error', text: err.response?.data?.error || 'Failed to update record' });
+    }
+  };
+
+  const handleDeleteClick = async (row) => {
+    if (activeReport !== 'unsatisfactory-inspections') return;
+    if (!window.confirm('Are you sure you want to delete this inspection record?')) return;
+    
+    const idKey = getIdKey();
+    try {
+      await axios.delete(`/api/reports/${activeReport}/${row[idKey]}`);
+      fetchReportData(activeReport);
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to delete record');
     }
   };
 
@@ -134,28 +218,38 @@ const App = () => {
         return [
           { header: 'Hall Name', key: 'hall_name' },
           { header: 'Manager', key: 'manager', render: (_, row) => `${row.first_name} ${row.last_name}` },
-          { header: 'Telephone', key: 'telephone' }
+          { header: 'Telephone', key: 'phone' }
         ];
       case 'student-leases':
         return [
-          { header: 'Banner #', key: 'banner_number' },
+          { header: 'Banner ID', key: 'banner_id' },
           { header: 'Student', key: 'name', render: (_, row) => `${row.first_name} ${row.last_name}` },
-          { header: 'Lease #', key: 'lease_number' },
-          { header: 'Start Date', key: 'enter_date' },
-          { header: 'End Date', key: 'leave_date' },
-          { header: 'Semesters', key: 'duration_semesters' }
+          { header: 'Lease ID', key: 'lease_id' },
+          { header: 'Start Date', key: 'start_date' },
+          { header: 'End Date', key: 'end_date' },
+          { header: 'Semester', key: 'semester' }
         ];
-      case 'student-categories':
+      case 'summer-leases':
+        return [
+          { header: 'Lease ID', key: 'lease_id' },
+          { header: 'Banner ID', key: 'banner_id' },
+          { header: 'Start Date', key: 'start_date', render: (val) => val ? new Date(val).toLocaleDateString() : '—' },
+          { header: 'End Date', key: 'end_date', render: (val) => val ? new Date(val).toLocaleDateString() : '—' },
+          { header: 'Semester', key: 'semester' },
+          { header: 'Place ID', key: 'place_id' }
+        ];
         return [
           { header: 'Category', key: 'category' },
           { header: 'Count', key: 'student_count' }
         ];
       case 'waiting-list':
         return [
-          { header: 'Banner #', key: 'banner_number' },
+          { header: 'Banner ID', key: 'banner_id' },
           { header: 'Name', key: 'name', render: (_, row) => `${row.first_name} ${row.last_name}` },
           { header: 'Category', key: 'category' },
-          { header: 'Major', key: 'major' },
+          { header: 'Major', key: 'major', render: (val) => val || '—' },
+          { header: 'Phone', key: 'phone', render: (val) => val || '—' },
+          { header: 'Nationality', key: 'nationality', render: (val) => val || '—' },
           { header: 'Email', key: 'email' }
         ];
       case 'rent-stats':
@@ -168,56 +262,88 @@ const App = () => {
           { header: 'Hall Name', key: 'hall_name' },
           { header: 'Total Places', key: 'total_places' }
         ];
+      case 'flat-students':
+        return [
+          { header: 'Banner ID', key: 'banner_id' },
+          { header: 'Student', key: 'name', render: (_, row) => `${row.first_name} ${row.last_name}` },
+          { header: 'Flat', key: 'flat_name' },
+          { header: 'Room No.', key: 'room_no' },
+          { header: 'Capacity', key: 'capacity', render: (val) => `${val}-Person` },
+          { header: 'Rent (₹)', key: 'rent', render: (val) => val ? `₹${parseFloat(val).toLocaleString('en-IN')}` : '—' },
+          { header: 'Semester', key: 'semester' }
+        ];
+      case 'flat-capacity':
+        return [
+          { header: 'Flat Name', key: 'flat_name' },
+          { header: 'Persons/Unit', key: 'persons_per_unit', render: (val) => `${val}-Person` },
+          { header: 'Total Units', key: 'total_units' },
+          { header: 'Total Beds', key: 'total_beds' },
+          { header: 'Occupied', key: 'occupied' },
+          { header: 'Available', key: 'available', render: (val) => {
+            const num = parseInt(val);
+            const color = num > 0 ? 'hsl(145, 63%, 42%)' : 'hsl(0, 84%, 60%)';
+            return <span style={{ fontWeight: 700, color }}>{num > 0 ? `${num} open` : 'Full'}</span>;
+          }}
+        ];
       case 'senior-staff':
         return [
-          { header: 'Staff #', key: 'staff_number' },
+          { header: 'Staff ID', key: 'staff_id' },
           { header: 'Name', key: 'name', render: (_, row) => `${row.first_name} ${row.last_name}` },
           { header: 'Age', key: 'age' },
           { header: 'Location', key: 'location' }
         ];
+      case 'all-staff':
+        return [
+          { header: 'Staff ID', key: 'staff_id' },
+          { header: 'Name', key: 'name', render: (_, row) => `${row.first_name} ${row.last_name}` },
+          { header: 'Position', key: 'position' },
+          { header: 'Department', key: 'department', render: (val) => val || '—' },
+          { header: 'Telephone', key: 'phone', render: (val) => val || '—' },
+          { header: 'Location', key: 'location', render: (val) => val || '—' }
+        ];
       case 'missing-next-of-kin':
         return [
-          { header: 'Banner #', key: 'banner_number' },
+          { header: 'Banner ID', key: 'banner_id' },
           { header: 'Name', key: 'name', render: (_, row) => `${row.first_name} ${row.last_name}` }
         ];
       case 'total-rent':
         return [
+          { header: 'Banner ID', key: 'banner_id' },
           { header: 'Student', key: 'name', render: (_, row) => `${row.first_name || ''} ${row.last_name || ''}` },
-          { header: 'Total Rent Paid', key: 'total_rent_paid', render: (val) => val ? `₹${parseFloat(val).toFixed(2)}` : '₹0.00' }
+          { header: 'Invoices Paid', key: 'invoices_paid' },
+          { header: 'Total Rent Paid', key: 'total_rent_paid', render: (val) => val ? `₹${parseFloat(val).toLocaleString('en-IN', {minimumFractionDigits: 2})}` : '₹0.00' }
         ];
       case 'unpaid-invoices':
         return [
-          { header: 'Invoice #', key: 'invoice_number' },
+          { header: 'Invoice ID', key: 'invoice_id' },
+          { header: 'Banner ID', key: 'banner_id' },
           { header: 'Student', key: 'name', render: (_, row) => `${row.first_name} ${row.last_name}` },
-          { header: 'Payment Due', key: 'payment_due', render: (val) => `₹${parseFloat(val).toFixed(2)}` },
-          { header: 'Due Date', key: 'due_date' }
+          { header: 'Amount Due (₹)', key: 'payment_due', render: (val) => val ? `₹${parseFloat(val).toLocaleString('en-IN', {minimumFractionDigits: 2})}` : '—' },
+          { header: 'Due Date', key: 'due_date', render: (val) => val ? new Date(val).toLocaleDateString() : '—' }
         ];
       case 'hall-students':
-      case 'flat-students':
         return [
-          { header: 'Banner #', key: 'banner_number' },
+          { header: 'Banner ID', key: 'banner_id' },
           { header: 'Student', key: 'name', render: (_, row) => `${row.first_name} ${row.last_name}` },
-          { header: 'Room #', key: 'room_number' },
-          { header: 'Place #', key: 'place_number' }
+          { header: 'Room No.', key: 'room_number' },
+          { header: 'Place No.', key: 'place_number' },
+          { header: 'Semester', key: 'semester' },
+          { header: 'Rent (₹)', key: 'rent', render: (val) => val ? `₹${parseFloat(val).toLocaleString('en-IN')}` : '—' }
         ];
       case 'student-adviser':
         return [
+          { header: 'Banner ID', key: 'banner_id' },
           { header: 'Student', key: 'student_first', render: (_, row) => `${row.student_first || ''} ${row.student_last || ''}` },
           { header: 'Adviser', key: 'adviser_first', render: (_, row) => `${row.adviser_first || ''} ${row.adviser_last || ''}` },
           { header: 'Telephone', key: 'telephone' }
         ];
-      case 'free-rooms':
+      case 'unsatisfactory-inspections':
         return [
-          { header: 'Room #', key: 'room_number' },
-          { header: 'Place #', key: 'place_number' },
-          { header: 'Monthly Rent', key: 'monthly_rent', render: (val) => `₹${parseFloat(val).toFixed(2)}` }
-        ];
-      case 'free-flats':
-        return [
-          { header: 'Flat / Apt', key: 'flat_number' },
-          { header: 'Room #', key: 'room_number' },
-          { header: 'Place #', key: 'place_number' },
-          { header: 'Monthly Rent', key: 'monthly_rent', render: (val) => `₹${parseFloat(val).toFixed(2)}` }
+          { header: 'Hall Name', key: 'hall_name' },
+          { header: 'Inspection Date', key: 'date', render: (val) => val ? new Date(val).toLocaleDateString() : '—' },
+          { header: 'Inspected By', key: 'inspector_name' },
+          { header: 'Condition', key: 'status', render: () => '❌ Unsatisfactory' },
+          { header: 'Comments', key: 'comments', render: (val) => val || '—' }
         ];
       default:
         if (data.length > 0) {
@@ -235,11 +361,17 @@ const App = () => {
       ] 
     : data;
 
+  if (isAuthenticating) return null;
+  if (!isLoggedIn) return <Login onLogin={handleLogin} />;
+
   return (
     <Layout 
       reports={reports} 
       activeReport={activeReport} 
       setActiveReport={setActiveReport}
+      activePercentage={activePercentage}
+      onLogout={handleLogout}
+      user={currentUser}
     >
       <ReportView 
         activeReport={activeReport}
@@ -247,10 +379,15 @@ const App = () => {
         data={processedData}
         loading={loading}
         getColumns={getColumns}
-        onAddStudent={() => setIsModalOpen(true)}
+        onAddStudent={() => {
+          if(activeReport === 'unsatisfactory-inspections') setIsInspectionModalOpen(true);
+          else setIsModalOpen(true);
+        }}
         idKey={getIdKey()}
         onEditClick={handleEditClick}
+        onDeleteClick={activeReport === 'unsatisfactory-inspections' ? handleDeleteClick : null}
         onSearch={(paramValue) => fetchReportData(activeReport, paramValue)}
+        activePercentage={activePercentage}
       />
 
       <StudentModal 
@@ -268,6 +405,15 @@ const App = () => {
         currentData={editData}
         handleUpdate={handleUpdate}
         statusMsg={editStatus}
+      />
+
+      <InspectionModal 
+        isOpen={isInspectionModalOpen}
+        onClose={() => setIsInspectionModalOpen(false)}
+        formData={inspectionFormData}
+        handleInputChange={handleInspectionInputChange}
+        handleSubmit={handleInspectionSubmit}
+        statusMsg={inspectionStatusMsg}
       />
     </Layout>
   );

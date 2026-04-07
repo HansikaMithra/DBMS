@@ -2,7 +2,7 @@ import React from 'react';
 import Sidebar from './Sidebar';
 import { Search, Bell, Settings } from 'lucide-react';
 
-const Layout = ({ children, reports, activeReport, setActiveReport }) => {
+const Layout = ({ children, reports, activeReport, setActiveReport, onLogout, user }) => {
   const currentReport = reports.find(r => r.id === activeReport) || reports[0];
 
   return (
@@ -11,6 +11,8 @@ const Layout = ({ children, reports, activeReport, setActiveReport }) => {
         reports={reports} 
         activeReport={activeReport} 
         setActiveReport={setActiveReport} 
+        onLogout={onLogout}
+        user={user}
       />
       
       <main className="app-main animate-fade">
@@ -24,6 +26,14 @@ const Layout = ({ children, reports, activeReport, setActiveReport }) => {
               <span className="gradient-text uppercase tracking-widest font-bold" style={{ fontSize: '0.75rem' }}>{currentReport.label}</span>
            </div>
            <div className="nav-actions">
+              {user && (
+                <div style={{ marginRight: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', borderRight: '1px solid hsla(var(--glass-border), 0.3)', paddingRight: '1rem' }}>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#0d2a4a' }}>{user.first_name} {user.last_name}</div>
+                    <div style={{ fontSize: '0.6rem', color: '#64748b', textTransform: 'uppercase' }}>{user.position}</div>
+                  </div>
+                </div>
+              )}
               <button className="nav-icon-btn"><Search size={18} /></button>
               <button className="nav-icon-btn">
                  <Bell size={18} />

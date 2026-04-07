@@ -9,13 +9,39 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
+// Request logging middleware
+app.use((req, res, next) => {
+    console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+    next();
+});
+
+app.get('/', (req, res) => res.send('API is running'));
+
+// --- AUTH ENDPOINT ---
+app.post('/api/login', async (req, res) => {
+    const { email, password } = req.body;
+    try {
+        const [rows] = await db.query(
+            'SELECT staff_id, first_name, last_name, email, position FROM Staff WHERE email = ? AND password = ?',
+            [email, password]
+        );
+        if (rows.length > 0) {
+            res.json({ success: true, user: rows[0] });
+        } else {
+            res.status(401).json({ success: false, message: 'Invalid email or password' });
+        }
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // (a) Hall managers report
 app.get('/api/reports/hall-managers', async (req, res) => {
     try {
         const [rows] = await db.query(`
-            SELECT h.hall_name, s.staff_number, s.first_name, s.last_name, s.telephone
-            FROM HallOfResidence h
-            JOIN Staff s ON h.manager_id = s.staff_number
+            SELECT h.hall_name, s.staff_id, s.first_name, s.last_name, s.phone
+            FROM Hall h
+            JOIN Staff s ON h.manager_id = s.staff_id
             ORDER BY h.hall_name
         `);
         res.json(rows);
@@ -28,9 +54,9 @@ app.get('/api/reports/hall-managers', async (req, res) => {
 app.get('/api/reports/student-leases', async (req, res) => {
     try {
         const [rows] = await db.query(`
-            SELECT s.first_name, s.last_name, s.banner_number, l.lease_number, l.enter_date, l.leave_date, l.duration_semesters
+            SELECT s.first_name, s.last_name, s.banner_id, l.lease_id, l.start_date, l.end_date, l.semester
             FROM Student s
-            JOIN Lease l ON s.banner_number = l.student_banner_number
+            JOIN Lease l ON s.banner_id = l.banner_id
         `);
         res.json(rows);
     } catch (err) {
@@ -42,9 +68,7 @@ app.get('/api/reports/student-leases', async (req, res) => {
 app.get('/api/reports/summer-leases', async (req, res) => {
     try {
         const [rows] = await db.query(`
-            SELECT * FROM Lease
-            WHERE lease_number IN (SELECT lease_number FROM Invoice WHERE semester LIKE 'Summer%')
-               OR (MONTH(enter_date) <= 8 AND MONTH(leave_date) >= 6)
+            SELECT * FROM Lease WHERE semester = 'Summer'
         `);
         res.json(rows);
     } catch (err) {
@@ -52,19 +76,21 @@ app.get('/api/reports/summer-leases', async (req, res) => {
     }
 });
 
-// (d) Total rent paid by a given student
-app.get('/api/reports/total-rent/:banner_number', async (req, res) => {
+// (d) Total rent paid by all students
+app.get('/api/reports/total-rent', async (req, res) => {
     try {
-        const { banner_number } = req.params;
         const [rows] = await db.query(`
-            SELECT s.first_name, s.last_name, SUM(i.payment_due) AS total_rent_paid
+            SELECT s.banner_id, s.first_name, s.last_name,
+                   COUNT(i.invoice_id) AS invoices_paid,
+                   SUM(i.amount) AS total_rent_paid
             FROM Student s
-            JOIN Lease l ON s.banner_number = l.student_banner_number
-            JOIN Invoice i ON l.lease_number = i.lease_number
-            WHERE s.banner_number = ? AND i.date_paid IS NOT NULL
-            GROUP BY s.banner_number, s.first_name, s.last_name
-        `, [banner_number]);
-        res.json(rows.length > 0 ? [rows[0]] : []);
+            JOIN Lease l ON s.banner_id = l.banner_id
+            JOIN Invoice i ON l.lease_id = i.lease_id
+            WHERE i.paid_date IS NOT NULL
+            GROUP BY s.banner_id, s.first_name, s.last_name
+            ORDER BY total_rent_paid DESC
+        `);
+        res.json(rows);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -73,15 +99,17 @@ app.get('/api/reports/total-rent/:banner_number', async (req, res) => {
 // (e) Unpaid invoices report by a given date
 app.get('/api/reports/unpaid-invoices', async (req, res) => {
     try {
-        const { date } = req.query; // e.g., ?date=2026-10-01
+        const { date } = req.query; 
         if (!date) return res.status(400).json({ error: 'Date parameter is required' });
         
         const [rows] = await db.query(`
-            SELECT s.first_name, s.last_name, i.invoice_number, i.payment_due, i.due_date
+            SELECT s.banner_id, s.first_name, s.last_name,
+                   i.invoice_id, i.amount AS payment_due, i.due_date
             FROM Student s
-            JOIN Lease l ON s.banner_number = l.student_banner_number
-            JOIN Invoice i ON l.lease_number = i.lease_number
-            WHERE i.date_paid IS NULL AND i.due_date <= ?
+            JOIN Lease l ON s.banner_id = l.banner_id
+            JOIN Invoice i ON l.lease_id = i.lease_id
+            WHERE i.paid_date IS NULL AND i.due_date <= ?
+            ORDER BY i.due_date ASC
         `, [date]);
         res.json(rows);
     } catch (err) {
@@ -93,8 +121,13 @@ app.get('/api/reports/unpaid-invoices', async (req, res) => {
 app.get('/api/reports/unsatisfactory-inspections', async (req, res) => {
     try {
         const [rows] = await db.query(`
-            SELECT * FROM Inspection
-            WHERE satisfactory_condition = FALSE
+            SELECT i.id, i.hall_name, i.date,
+                   CONCAT(s.first_name, ' ', s.last_name) AS inspector_name,
+                   i.comments
+            FROM Inspection i
+            JOIN Staff s ON i.staff_id = s.staff_id
+            WHERE i.status = FALSE
+            ORDER BY i.date DESC
         `);
         res.json(rows);
     } catch (err) {
@@ -107,66 +140,15 @@ app.get('/api/reports/hall-students/:hall_name', async (req, res) => {
     try {
         const { hall_name } = req.params;
         const [rows] = await db.query(`
-            SELECT s.first_name, s.last_name, s.banner_number, r.room_number, r.place_number
+            SELECT s.banner_id, s.first_name, s.last_name,
+                   r.room_no AS room_number, r.place_id AS place_number,
+                   r.rent, l.semester
             FROM Student s
-            JOIN Lease l ON s.banner_number = l.student_banner_number
-            JOIN Room r ON l.place_number = r.place_number
+            JOIN Lease l ON s.banner_id = l.banner_id
+            JOIN Room r ON l.place_id = r.place_id
             WHERE r.hall_name = ?
+            ORDER BY r.room_no
         `, [hall_name]);
-        res.json(rows);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// Students in a particular flat (Extension of query g)
-app.get('/api/reports/flat-students/:flat_number', async (req, res) => {
-    try {
-        const { flat_number } = req.params;
-        const [rows] = await db.query(`
-            SELECT s.first_name, s.last_name, s.banner_number, r.room_number, r.place_number
-            FROM Student s
-            JOIN Lease l ON s.banner_number = l.student_banner_number
-            JOIN Room r ON l.place_number = r.place_number
-            WHERE r.flat_number = ?
-        `, [flat_number]);
-        res.json(rows);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// Available rooms in a given hall (User Addition)
-app.get('/api/reports/free-rooms/:hall_name', async (req, res) => {
-    try {
-        const { hall_name } = req.params;
-        const [rows] = await db.query(`
-            SELECT room_number, place_number, monthly_rent
-            FROM Room
-            WHERE hall_name = ? 
-              AND place_number NOT IN (
-                  SELECT place_number FROM Lease 
-                  WHERE CURDATE() BETWEEN enter_date AND leave_date
-              )
-        `, [hall_name]);
-        res.json(rows);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// Available flats in the system (User Addition)
-app.get('/api/reports/free-flats', async (req, res) => {
-    try {
-        const [rows] = await db.query(`
-            SELECT flat_number, room_number, place_number, monthly_rent
-            FROM Room
-            WHERE flat_number IS NOT NULL
-              AND place_number NOT IN (
-                  SELECT place_number FROM Lease 
-                  WHERE CURDATE() BETWEEN enter_date AND leave_date
-              )
-        `);
         res.json(rows);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -177,8 +159,11 @@ app.get('/api/reports/free-flats', async (req, res) => {
 app.get('/api/reports/waiting-list', async (req, res) => {
     try {
         const [rows] = await db.query(`
-            SELECT * FROM Student
-            WHERE status = 'waiting'
+            SELECT s.banner_id, s.first_name, s.last_name,
+                   s.email, s.phone, s.category, s.major, s.nationality
+            FROM Student s
+            WHERE s.status = 'waiting'
+            ORDER BY s.banner_id
         `);
         res.json(rows);
     } catch (err) {
@@ -204,10 +189,10 @@ app.get('/api/reports/student-categories', async (req, res) => {
 app.get('/api/reports/missing-next-of-kin', async (req, res) => {
     try {
         const [rows] = await db.query(`
-            SELECT s.first_name, s.last_name, s.banner_number
+            SELECT s.first_name, s.last_name, s.banner_id
             FROM Student s
-            LEFT JOIN NextOfKin n ON s.banner_number = n.student_banner_number
-            WHERE n.student_banner_number IS NULL
+            LEFT JOIN NextOfKin n ON s.banner_id = n.banner_id
+            WHERE n.banner_id IS NULL
         `);
         res.json(rows);
     } catch (err) {
@@ -215,18 +200,17 @@ app.get('/api/reports/missing-next-of-kin', async (req, res) => {
     }
 });
 
-// (k) Student adviser report
-app.get('/api/reports/student-adviser/:banner_number', async (req, res) => {
+// (k) Student advisers list
+app.get('/api/reports/student-adviser', async (req, res) => {
     try {
-        const { banner_number } = req.params;
         const [rows] = await db.query(`
-            SELECT s.first_name AS student_first, s.last_name AS student_last, 
-                   st.first_name AS adviser_first, st.last_name AS adviser_last, st.telephone
+            SELECT s.banner_id, s.first_name AS student_first, s.last_name AS student_last, 
+                   st.first_name AS adviser_first, st.last_name AS adviser_last, st.phone AS telephone
             FROM Student s
-            JOIN Staff st ON s.adviser_id = st.staff_number
-            WHERE s.banner_number = ?
-        `, [banner_number]);
-        res.json(rows.length > 0 ? [rows[0]] : []);
+            JOIN Staff st ON s.adviser_id = st.staff_id
+            ORDER BY s.banner_id
+        `);
+        res.json(rows);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -236,9 +220,8 @@ app.get('/api/reports/student-adviser/:banner_number', async (req, res) => {
 app.get('/api/reports/rent-stats', async (req, res) => {
     try {
         const [rows] = await db.query(`
-            SELECT MIN(monthly_rent) as min_rent, MAX(monthly_rent) as max_rent, AVG(monthly_rent) as avg_rent
+            SELECT MIN(rent) as min_rent, MAX(rent) as max_rent, AVG(rent) as avg_rent
             FROM Room
-            WHERE hall_name IS NOT NULL
         `);
         res.json(rows[0]);
     } catch (err) {
@@ -252,8 +235,47 @@ app.get('/api/reports/hall-places', async (req, res) => {
         const [rows] = await db.query(`
             SELECT hall_name, COUNT(*) as total_places
             FROM Room
-            WHERE hall_name IS NOT NULL
             GROUP BY hall_name
+        `);
+        res.json(rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Flat students report
+app.get('/api/reports/flat-students', async (req, res) => {
+    try {
+        const [rows] = await db.query(`
+            SELECT s.banner_id, s.first_name, s.last_name,
+                   r.room_no, r.hall_name AS flat_name, f.capacity,
+                   r.rent, l.semester
+            FROM Student s
+            JOIN Lease l ON s.banner_id = l.banner_id
+            JOIN Room r ON l.place_id = r.place_id
+            JOIN Flat f ON r.hall_name = f.flat_name
+            ORDER BY r.hall_name, r.room_no
+        `);
+        res.json(rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Flat capacity report
+app.get('/api/reports/flat-capacity', async (req, res) => {
+    try {
+        const [rows] = await db.query(`
+            SELECT f.flat_name, f.capacity AS persons_per_unit,
+                   COUNT(DISTINCT r.place_id) AS total_units,
+                   COUNT(DISTINCT r.place_id) * f.capacity AS total_beds,
+                   COUNT(DISTINCT l.banner_id) AS occupied,
+                   (COUNT(DISTINCT r.place_id) * f.capacity) - COUNT(DISTINCT l.banner_id) AS available
+            FROM Flat f
+            JOIN Room r ON f.flat_name = r.hall_name
+            LEFT JOIN Lease l ON r.place_id = l.place_id
+            GROUP BY f.flat_name, f.capacity
+            ORDER BY f.flat_name
         `);
         res.json(rows);
     } catch (err) {
@@ -265,7 +287,7 @@ app.get('/api/reports/hall-places', async (req, res) => {
 app.get('/api/reports/senior-staff', async (req, res) => {
     try {
         const [rows] = await db.query(`
-            SELECT staff_number, first_name, last_name, 
+            SELECT staff_id, first_name, last_name, 
                    TIMESTAMPDIFF(YEAR, dob, CURDATE()) AS age, 
                    location
             FROM Staff
@@ -277,115 +299,108 @@ app.get('/api/reports/senior-staff', async (req, res) => {
     }
 });
 
-// --- NEW RECORD CREATION ---
-
-// Add a new Student with Auto-Allocator sequence
-app.post('/api/students', async (req, res) => {
+// All Staff Report
+app.get('/api/reports/all-staff', async (req, res) => {
     try {
-        const { 
-            banner_number, first_name, last_name, email, dob, gender, category,
-            address, phone, nationality, special_needs, comments, status, major, minor, adviser_id, course_number
-        } = req.body;
-
-        // Basic validation for required fields
-        if (!banner_number || !first_name || !last_name || !email || !dob || !gender || !category) {
-            return res.status(400).json({ error: 'Missing required student fields' });
-        }
-
-        // 1. Insert Student (Defaulting to waiting)
-        await db.query(`
-            INSERT INTO Student (
-                banner_number, first_name, last_name, email, dob, gender, category,
-                address, phone, nationality, special_needs, comments, status, major, minor, adviser_id, course_number
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `, [
-            banner_number, first_name, last_name, email, dob, gender, category,
-            address || null, phone || null, nationality || null, special_needs || null, 
-            comments || null, status || 'waiting', major || null, minor || null, 
-            adviser_id || null, course_number || null
-        ]);
-
-        // 2. Attempt Auto-Allocation
-        const [freeRooms] = await db.query(`
-            SELECT place_number, monthly_rent FROM Room 
-            WHERE place_number NOT IN (
-                SELECT place_number FROM Lease WHERE CURDATE() BETWEEN enter_date AND leave_date
-            ) LIMIT 1
+        const [rows] = await db.query(`
+            SELECT staff_id, first_name, last_name, position, department, phone, email, location
+            FROM Staff
+            ORDER BY staff_id
         `);
-
-        if (freeRooms.length > 0) {
-            const room = freeRooms[0];
-            
-            // a. Create Lease (1 Semester = ~6 Months)
-            const [leaseResult] = await db.query(`
-                INSERT INTO Lease (student_banner_number, place_number, duration_semesters, enter_date, leave_date)
-                VALUES (?, ?, 1, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 6 MONTH))
-            `, [banner_number, room.place_number]);
-
-            const leaseNumber = leaseResult.insertId;
-
-            // b. Create Invoice (Rent * 4 Months)
-            await db.query(`
-                INSERT INTO Invoice (lease_number, semester, payment_due, due_date, date_invoice_sent)
-                VALUES (?, 'Current Semester', ?, DATE_ADD(CURDATE(), INTERVAL 1 MONTH), CURDATE())
-            `, [leaseNumber, room.monthly_rent * 4]);
-
-            // c. Update status to placed
-            await db.query(`UPDATE Student SET status = 'placed' WHERE banner_number = ?`, [banner_number]);
-
-            return res.status(201).json({ message: `Student registered and AUTO-PLACED in Place: ${room.place_number}`, banner_number });
-        }
-
-        res.status(201).json({ message: 'Student registered successfully (Added to Waiting List)', banner_number });
+        res.json(rows);
     } catch (err) {
-        if (err.code === 'ER_DUP_ENTRY') {
-            return res.status(409).json({ error: 'Student with this Banner Number or Email already exists' });
-        }
         res.status(500).json({ error: err.message });
     }
 });
 
-// --- GENERIC UPDATE (Reports) ---
+// Dynamic Active Percentage Stats
+app.get('/api/stats/active-percentage', async (req, res) => {
+    try {
+        const [rows] = await db.query(`
+            SELECT 
+                (SELECT COUNT(*) FROM Student WHERE status = 'placed') AS placed_count,
+                (
+                    SELECT SUM(capacity) FROM (
+                        SELECT 1 AS capacity FROM Room r LEFT JOIN Flat f ON r.hall_name = f.flat_name WHERE f.flat_name IS NULL
+                        UNION ALL
+                        SELECT f.capacity FROM Room r JOIN Flat f ON r.hall_name = f.flat_name
+                    ) as cap
+                ) AS total_capacity
+        `);
+        const { placed_count, total_capacity } = rows[0];
+        const percentage = total_capacity > 0 ? ((placed_count / total_capacity) * 100).toFixed(0) : 0;
+        res.json({ percentage: `${percentage}%` });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Create new Student
+app.post('/api/students', async (req, res) => {
+    try {
+        const { 
+            banner_id, first_name, last_name, city, phone, email, dob, gender, category,
+            nationality, status, major, minor, adviser_id, course_id, preference
+        } = req.body;
+
+        await db.query(`
+            INSERT INTO Student (
+                banner_id, first_name, last_name, city, phone, email, dob, gender, category,
+                nationality, status, preference, major, minor, adviser_id, course_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, [
+            banner_id, first_name, last_name, city || null, phone || null, email, dob, gender, category,
+            nationality || null, status || 'waiting', preference || null, major || null, minor || null, 
+            adviser_id || null, course_id || null
+        ]);
+
+        res.status(201).json({ message: 'Student registered successfully', banner_id });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Create Inspection
+app.post('/api/inspections', async (req, res) => {
+    try {
+        const { hall_name, staff_id, date, status, comments } = req.body;
+        await db.query(`
+            INSERT INTO Inspection (hall_name, staff_id, date, status, comments)
+            VALUES (?, ?, ?, ?, ?)
+        `, [hall_name, staff_id, date, status, comments || null]);
+        res.status(201).json({ message: 'Inspection recorded successfully' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Update Record
 app.put('/api/reports/:reportId/:id', async (req, res) => {
     const { reportId, id } = req.params;
     const data = req.body;
-    
     try {
         let tableName = '';
         let idColumn = '';
         let updateData = {};
 
-        // Route the update to the correct base table and primary key based on report context
         if (reportId === 'waiting-list' || reportId === 'missing-next-of-kin') {
-            tableName = 'Student'; idColumn = 'banner_number';
+            tableName = 'Student'; idColumn = 'banner_id';
             if(data.first_name) updateData.first_name = data.first_name;
             if(data.last_name) updateData.last_name = data.last_name;
             if(data.email) updateData.email = data.email;
-            if(data.category) updateData.category = data.category;
-            if(data.major) updateData.major = data.major;
         } else if (reportId === 'senior-staff' || reportId === 'hall-managers') {
-            tableName = 'Staff'; 
-            idColumn = reportId === 'hall-managers' ? 'staff_number' : 'staff_number';
-            // Wait, for hall-managers we show manager ID but the view doesn't explicitly expose manager_id? It does implicitly.
-            updateData = { location: data.location, telephone: data.telephone, first_name: data.first_name };
+            tableName = 'Staff'; idColumn = 'staff_id';
+            if(data.location) updateData.location = data.location;
+            if(data.phone) updateData.phone = data.phone;
         } else if (reportId === 'unsatisfactory-inspections') {
-            tableName = 'Inspection'; idColumn = 'inspection_id';
-            updateData = { comments: data.comments, satisfactory_condition: data.satisfactory_condition === 'true' || data.satisfactory_condition === 1 };
+            tableName = 'Inspection'; idColumn = 'id';
+            updateData = { comments: data.comments, status: data.status };
         } else if (reportId === 'student-leases' || reportId === 'summer-leases') {
-            tableName = 'Lease'; idColumn = 'lease_number';
-            if(data.duration_semesters) updateData.duration_semesters = data.duration_semesters;
-            if(data.enter_date) updateData.enter_date = data.enter_date.split('T')[0];
-            if(data.leave_date) updateData.leave_date = data.leave_date.split('T')[0];
-        } else {
-            return res.status(400).json({ error: 'Update not supported for this report type.' });
+            tableName = 'Lease'; idColumn = 'lease_id';
+            if(data.semester) updateData.semester = data.semester;
         }
 
-        // Clean out undefined data
-        Object.keys(updateData).forEach(key => updateData[key] === undefined && delete updateData[key]);
-
         if (Object.keys(updateData).length === 0) return res.json({ message: 'No valid fields to update' });
-        
-        // Execute dynamic UPDATE
         await db.query(`UPDATE ${tableName} SET ? WHERE ${idColumn} = ?`, [updateData, id]);
         res.json({ message: 'Record updated successfully' });
     } catch (err) {
@@ -393,11 +408,25 @@ app.put('/api/reports/:reportId/:id', async (req, res) => {
     }
 });
 
-// Basic endpoint to check if server is running
-app.get('/', (req, res) => {
-    res.send('University Accommodation API is running');
+// Delete Record
+app.delete('/api/reports/:reportId/:id', async (req, res) => {
+    const { reportId, id } = req.params;
+    try {
+        let tableName = '';
+        let idColumn = '';
+
+        if (reportId === 'unsatisfactory-inspections') {
+            tableName = 'Inspection'; idColumn = 'id';
+        } else {
+            return res.status(400).json({ error: 'Delete not supported for this report' });
+        }
+
+        await db.query(`DELETE FROM ${tableName} WHERE ${idColumn} = ?`, [id]);
+        res.json({ message: 'Record deleted successfully' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
-app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
-});
+app.get('/', (req, res) => { res.send('University Accommodation API is running'); });
+app.listen(PORT, () => { console.log(`Server is running on port ${PORT}`); });

@@ -50,12 +50,24 @@ const EditRowModal = ({ isOpen, onClose, currentData, handleUpdate, statusMsg })
               {fields.map(key => (
                 <div key={key}>
                   <label className="form-label">{key.replace(/_/g, ' ').toUpperCase()}</label>
-                  <input 
-                    name={key} 
-                    value={formData[key] || ''} 
-                    onChange={handleChange} 
-                    className="glass-input" 
-                  />
+                  {key === 'satisfactory_condition' ? (
+                    <select 
+                      name={key} 
+                      value={formData[key] === 1 || formData[key] === true || formData[key] === '1' ? '1' : '0'} 
+                      onChange={handleChange} 
+                      className="glass-select"
+                    >
+                      <option value="0">Needs Repair (Pending)</option>
+                      <option value="1">Satisfactory (Repaired)</option>
+                    </select>
+                  ) : (
+                    <input 
+                      name={key} 
+                      value={formData[key] || ''} 
+                      onChange={handleChange} 
+                      className="glass-input" 
+                    />
+                  )}
                 </div>
               ))}
             </div>

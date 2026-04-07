@@ -4,88 +4,73 @@
 
 USE accommodation_db;
 
--- (a) Present a report listing the manager's name and telephone number for each hall of residence.
-SELECT h.hall_name, s.first_name, s.last_name, s.telephone
-FROM HallOfResidence h
-JOIN Staff s ON h.manager_id = s.staff_number
-ORDER BY h.hall_name;
+-- (a) Manager name & phone for each hall
+SELECT s.first_name, s.last_name, s.phone, h.hall_name
+FROM Hall h
+JOIN Staff s ON h.manager_id = s.staff_id;
 
--- (b) Present a report listing the names and student numbers of students with the details of their lease agreements.
-SELECT s.first_name, s.last_name, s.banner_number, l.lease_number, l.enter_date, l.leave_date, l.duration_semesters
+-- (b) Students with lease details
+SELECT s.banner_id, s.first_name, s.last_name, l.lease_id, l.semester
 FROM Student s
-JOIN Lease l ON s.banner_number = l.student_banner_number;
+JOIN Lease l ON s.banner_id = l.banner_id;
 
--- (c) Display the details of lease agreements that include the Summer Semester.
--- Filtering by the semester name "Summer" or date range overlapping June-August.
-SELECT * FROM Lease
-WHERE lease_number IN (SELECT lease_number FROM Invoice WHERE semester LIKE 'Summer%')
-   OR (MONTH(enter_date) <= 8 AND MONTH(leave_date) >= 6);
+-- (c) Leases including summer semester
+SELECT * FROM Lease WHERE semester = 'Summer';
 
--- (d) Display the details of the total rent paid by a given student.
--- Example for student 'B00001'
-SELECT s.first_name, s.last_name, SUM(i.payment_due) AS total_rent_paid
+-- (d) Total rent paid by each student
+SELECT s.banner_id, s.first_name, SUM(i.amount) AS total_paid
 FROM Student s
-JOIN Lease l ON s.banner_number = l.student_banner_number
-JOIN Invoice i ON l.lease_number = i.lease_number
-WHERE s.banner_number = 'B00001' AND i.date_paid IS NOT NULL
-GROUP BY s.banner_number, s.first_name, s.last_name;
+JOIN Lease l ON s.banner_id = l.banner_id
+JOIN Invoice i ON l.lease_id = i.lease_id
+WHERE i.paid_date IS NOT NULL
+GROUP BY s.banner_id;
 
--- (e) Present a report on students that have not paid their invoices by a given date.
--- Example date: '2026-10-01'. Returns invoices where due_date has passed but date_paid is null.
-SELECT s.first_name, s.last_name, i.invoice_number, i.payment_due, i.due_date
+-- (e) Students who have NOT paid invoices
+SELECT s.banner_id, s.first_name, i.invoice_id
 FROM Student s
-JOIN Lease l ON s.banner_number = l.student_banner_number
-JOIN Invoice i ON l.lease_number = i.lease_number
-WHERE i.date_paid IS NULL AND i.due_date <= '2026-10-01';
+JOIN Lease l ON s.banner_id = l.banner_id
+JOIN Invoice i ON l.lease_id = i.lease_id
+WHERE i.paid_date IS NULL;
 
--- (f) Display the details of apartment inspections where the property was found to be in an unsatisfactory condition.
-SELECT * FROM Inspection
-WHERE satisfactory_condition = FALSE;
+-- (f) Unsatisfactory inspections
+SELECT * FROM Inspection WHERE status = FALSE;
 
--- (g) Present a report of the names and banner numbers of students with their room number and place number in a particular hall of residence.
--- Example for 'Hall A'
-SELECT s.first_name, s.last_name, s.banner_number, r.room_number, r.place_number
+-- (g) Students with room + place details
+SELECT s.banner_id, s.first_name, r.room_no, r.place_id, r.hall_name
 FROM Student s
-JOIN Lease l ON s.banner_number = l.student_banner_number
-JOIN Room r ON l.place_number = r.place_number
-WHERE r.hall_name = 'Hall A';
+JOIN Lease l ON s.banner_id = l.banner_id
+JOIN Room r ON l.place_id = r.place_id;
 
--- (h) List the details of all students currently on the waiting list for accommodation.
-SELECT * FROM Student
-WHERE status = 'waiting';
+-- (h) Students on waiting list
+SELECT * FROM Student WHERE status = 'waiting';
 
--- (i) Display the total number of students in each student category (e.g., undergraduate, postgraduate).
-SELECT category, COUNT(*) as student_count
+-- (i) Number of students per category
+SELECT category, COUNT(*) AS total_students
 FROM Student
 GROUP BY category;
 
--- (j) Present a report of the names and student numbers for all students who have not supplied details of their next-of-kin.
-SELECT s.first_name, s.last_name, s.banner_number
+-- (j) Students without next-of-kin
+SELECT s.banner_id, s.first_name
 FROM Student s
-LEFT JOIN NextOfKin n ON s.banner_number = n.student_banner_number
-WHERE n.student_banner_number IS NULL;
+LEFT JOIN NextOfKin n ON s.banner_id = n.banner_id
+WHERE n.banner_id IS NULL;
 
--- (k) Display the name and internal telephone number of the Adviser for a particular student (e.g., 'B00001').
-SELECT s.first_name AS student_first, s.last_name AS student_last, 
-       st.first_name AS adviser_first, st.last_name AS adviser_last, st.telephone
+-- (k) Adviser details for a student
+SELECT s.first_name AS student_name, st.first_name AS adviser_name, st.phone
 FROM Student s
-JOIN Staff st ON s.adviser_id = st.staff_number
-WHERE s.banner_number = 'B00001';
+JOIN Staff st ON s.adviser_id = st.staff_id
+WHERE s.banner_id = 'B1';
 
--- (l) Display the minimum, maximum, and average monthly rent for rooms in all residence halls.
-SELECT MIN(monthly_rent) as min_rent, MAX(monthly_rent) as max_rent, AVG(monthly_rent) as avg_rent
-FROM Room
-WHERE hall_name IS NOT NULL;
+-- (l) Min, Max, Avg rent in halls
+SELECT MIN(rent) AS min_rent, MAX(rent) AS max_rent, AVG(rent) AS avg_rent
+FROM Room;
 
--- (m) Display the total number of places (rooms) in each residence hall.
-SELECT hall_name, COUNT(*) as total_places
+-- (m) Total number of rooms in each hall
+SELECT hall_name, COUNT(*) AS total_rooms
 FROM Room
-WHERE hall_name IS NOT NULL
 GROUP BY hall_name;
 
--- (n) Display the staff number, name, age, and current location of all members of the residence staff who are over 60 years old today.
-SELECT staff_number, first_name, last_name, 
-       TIMESTAMPDIFF(YEAR, dob, CURDATE()) AS age, 
-       location
+-- (n) Staff over 60 years old
+SELECT staff_id, first_name, last_name, TIMESTAMPDIFF(YEAR, dob, CURDATE()) AS age, location
 FROM Staff
 WHERE TIMESTAMPDIFF(YEAR, dob, CURDATE()) > 60;

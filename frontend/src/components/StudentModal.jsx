@@ -33,14 +33,26 @@ const StudentModal = ({ isOpen, onClose, formData, handleInputChange, handleSubm
           <p className="form-section-title">Personal Information</p>
           <div className="form-grid">
             <div>
-              <label className="form-label">Banner Number *</label>
-              <input required name="banner_number" value={formData.banner_number} onChange={handleInputChange} className="glass-input" placeholder="e.g. B00123456" />
+              <label className="form-label">Banner ID *</label>
+              <input required name="banner_id" value={formData.banner_id} onChange={handleInputChange} className="glass-input" placeholder="e.g. B101" />
             </div>
             <div>
               <label className="form-label">Category *</label>
               <select name="category" value={formData.category} onChange={handleInputChange} className="glass-select">
                 <option>Undergraduate</option>
                 <option>Postgraduate</option>
+              </select>
+            </div>
+            <div style={{ gridColumn: '1 / -1' }}>
+              <label className="form-label">Accommodation Preference *</label>
+              <select name="preference" value={formData.preference} onChange={handleInputChange} className="glass-select" required>
+                <option value="">-- Select Preference --</option>
+                <option value="Hall A">Hall A</option>
+                <option value="Hall B">Hall B</option>
+                <option value="Hall C">Hall C</option>
+                <option value="Hall D">Hall D</option>
+                <option value="Hall E">Hall E</option>
+                <option value="Flat">Flat (Shared Apartment)</option>
               </select>
             </div>
             <div>
@@ -60,7 +72,6 @@ const StudentModal = ({ isOpen, onClose, formData, handleInputChange, handleSubm
               <select name="gender" value={formData.gender} onChange={handleInputChange} className="glass-select">
                 <option value="M">Male</option>
                 <option value="F">Female</option>
-                <option value="Other">Other</option>
               </select>
             </div>
             <div>
@@ -68,14 +79,14 @@ const StudentModal = ({ isOpen, onClose, formData, handleInputChange, handleSubm
               <input name="nationality" value={formData.nationality} onChange={handleInputChange} className="glass-input" placeholder="e.g. British" />
             </div>
             <div>
-              <label className="form-label">Special Needs</label>
-              <input name="special_needs" value={formData.special_needs} onChange={handleInputChange} className="glass-input" placeholder="e.g. Ground floor required" />
+              <label className="form-label">City</label>
+              <input name="city" value={formData.city} onChange={handleInputChange} className="glass-input" placeholder="e.g. London" />
             </div>
           </div>
         </section>
 
         <section className="form-group" style={{ marginTop: '2rem' }}>
-          <p className="form-section-title">Contact Details</p>
+          <p className="form-section-title">Contact & Professional Details</p>
           <div className="form-grid">
             <div>
               <label className="form-label">Email Address *</label>
@@ -85,16 +96,6 @@ const StudentModal = ({ isOpen, onClose, formData, handleInputChange, handleSubm
               <label className="form-label">Phone Number</label>
               <input name="phone" value={formData.phone} onChange={handleInputChange} className="glass-input" placeholder="e.g. +44 7700 900000" />
             </div>
-            <div style={{ gridColumn: '1 / -1' }}>
-              <label className="form-label">Home Address</label>
-              <input name="address" value={formData.address} onChange={handleInputChange} className="glass-input" placeholder="e.g. 123 University Road, London" />
-            </div>
-          </div>
-        </section>
-
-        <section className="form-group" style={{ marginTop: '2rem' }}>
-          <p className="form-section-title">Academic & Housing Information</p>
-          <div className="form-grid">
             <div>
               <label className="form-label">Major Program</label>
               <input name="major" value={formData.major} onChange={handleInputChange} className="glass-input" placeholder="e.g. Computer Science" />
@@ -104,8 +105,12 @@ const StudentModal = ({ isOpen, onClose, formData, handleInputChange, handleSubm
               <input name="minor" value={formData.minor} onChange={handleInputChange} className="glass-input" placeholder="e.g. Mathematics" />
             </div>
             <div>
-              <label className="form-label">Course Number</label>
-              <input name="course_number" value={formData.course_number} onChange={handleInputChange} className="glass-input" placeholder="e.g. C101" />
+              <label className="form-label">Course ID</label>
+              <input name="course_id" value={formData.course_id} onChange={handleInputChange} className="glass-input" placeholder="e.g. CS1" />
+            </div>
+            <div>
+              <label className="form-label">Adviser ID</label>
+              <input type="number" name="adviser_id" value={formData.adviser_id} onChange={handleInputChange} className="glass-input" placeholder="e.g. 1" />
             </div>
             <div>
               <label className="form-label">Housing Status *</label>

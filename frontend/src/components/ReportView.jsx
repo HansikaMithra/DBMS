@@ -1,7 +1,7 @@
 import React from 'react';
-import { Info, FileText, Download, UserPlus, MoreHorizontal, Edit2 } from 'lucide-react';
+import { Info, FileText, Download, UserPlus, MoreHorizontal, Edit2, Trash2 } from 'lucide-react';
 
-const ReportTable = ({ data, columns, idKey, onEditClick }) => {
+const ReportTable = ({ data, columns, idKey, onEditClick, onDeleteClick }) => {
   const [activeDropdown, setActiveDropdown] = React.useState(null);
 
   const toggleDropdown = (index) => {
@@ -50,6 +50,11 @@ const ReportTable = ({ data, columns, idKey, onEditClick }) => {
                        <button onClick={() => { onEditClick(row); setActiveDropdown(null); }} className="btn-ghost" style={{ justifyContent: 'flex-start', padding: '0.5rem 1rem', width: '120px' }}>
                           <Edit2 size={14} /> Update
                        </button>
+                       {onDeleteClick && (
+                         <button onClick={() => { onDeleteClick(row); setActiveDropdown(null); }} className="btn-ghost" style={{ justifyContent: 'flex-start', padding: '0.5rem 1rem', width: '120px', color: 'hsl(var(--danger, 0 84% 60%))' }}>
+                            <Trash2 size={14} /> Delete
+                         </button>
+                       )}
                     </div>
                   )}
                 </td>
@@ -74,7 +79,7 @@ const StatCard = ({ label, value, icon: Icon }) => (
   </div>
 );
 
-const ReportView = ({ activeReport, reports, data, loading, getColumns, onAddStudent, idKey, onEditClick, onSearch }) => {
+const ReportView = ({ activeReport, reports, data, loading, getColumns, onAddStudent, idKey, onEditClick, onDeleteClick, onSearch, activePercentage }) => {
   const currentReport = reports.find(r => r.id === activeReport) || reports[0];
   const columns = getColumns();
   const [paramValue, setParamValue] = React.useState('');
@@ -83,12 +88,32 @@ const ReportView = ({ activeReport, reports, data, loading, getColumns, onAddStu
     setParamValue('');
   }, [activeReport]);
 
+  const handleExport = () => {
+    if (!data || data.length === 0) return;
+    const headers = Object.keys(data[0]);
+    const csvRows = [headers.join(',')];
+    
+    data.forEach(row => {
+      const values = headers.map(header => {
+        const escaped = ('' + (row[header] ?? '')).replace(/"/g, '""');
+        return `"${escaped}"`;
+      });
+      csvRows.push(values.join(','));
+    });
+    
+    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `${currentReport.id}_export_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+  };
+
   return (
     <div className="animate-fade">
       {/* Stat Cards Row */}
       <div className="stat-cards-grid">
          <StatCard label="Total Records" value={data.length} icon={FileText} />
-         <StatCard label="Active Now" value="98%" icon={Info} />
+         <StatCard label="Active Now" value={activePercentage} icon={Info} />
          <StatCard label="Alerts" value="0" icon={Info} />
          <StatCard label="System Status" value="Healthy" icon={Info} />
       </div>
@@ -104,13 +129,17 @@ const ReportView = ({ activeReport, reports, data, loading, getColumns, onAddStu
         </div>
         
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <button className="btn-ghost" style={{ fontSize: '0.75rem', padding: '0.5rem 1rem' }}>
+          <button onClick={handleExport} className="btn-ghost" style={{ fontSize: '0.75rem', padding: '0.5rem 1rem' }}>
              <Download size={16} />
              <span>Export</span>
           </button>
           <button onClick={onAddStudent} className="btn-primary" style={{ fontSize: '0.75rem', padding: '0.5rem 1rem' }}>
-             <UserPlus size={16} />
-             <span>Add Student</span>
+             {currentReport.addActionIcon ? (
+                <currentReport.addActionIcon size={16} />
+             ) : (
+                <UserPlus size={16} />
+             )}
+             <span>{currentReport.addActionLabel || 'Add Student'}</span>
           </button>
         </div>
       </header>
@@ -153,7 +182,7 @@ const ReportView = ({ activeReport, reports, data, loading, getColumns, onAddStu
               <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
             </div>
           ) : (
-            <ReportTable data={data} columns={columns} idKey={idKey} onEditClick={onEditClick} />
+            <ReportTable data={data} columns={columns} idKey={idKey} onEditClick={onEditClick} onDeleteClick={onDeleteClick} />
           )}
         </div>
       </div>
