@@ -60,3 +60,5 @@ npm run dev
 ### 🔑 Default Credentials
 - **Staff Email:** `ananya1@univ.edu`
 - **Password:** `staff123`
+## Contributors
+- Lakshmi Soujanya – Documentation, testing, frontend explanation
